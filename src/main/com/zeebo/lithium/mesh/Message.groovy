@@ -19,7 +19,8 @@ class Message {
 
 	int messageType
 
-	String socketInfo
+	String serverId
+	int serverPort
 
 	String message
 
