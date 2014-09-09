@@ -51,7 +51,7 @@ class MeshNode {
 		this.port = port
 		serverSocket = new ServerSocket(port)
 
-		serverId = port
+		serverId = InetAddress.localHost.hostAddress + ':' + port
 
 		log.info "$serverId started on port $port"
 	}
@@ -114,7 +114,10 @@ class MeshNode {
 				callback?.call(remoteServerId)
 
 				while(true) {
-					handleMessage remoteServerId, Message.fromJson(input.readUntil(DELIMETER))
+					messageString = input.readUntil(DELIMETER)
+					if (messageString) {
+						handleMessage remoteServerId, Message.fromJson(messageString)
+					}
 				}
 			}
 			else {
@@ -140,7 +143,8 @@ class MeshNode {
 
 	private def handleMessage(String serverId, Message msg) {
 
-		log.fine "${this.serverId} received message from $serverId of type ${msg?.messageType}"
+		assert msg != null
+		log.fine "${this.serverId} received message from $serverId of type ${msg.messageType}"
 
 		if (msg.messageType <= 128 && msg.messageType != 0) {
 			this."${systemMessageTypeHandlers[msg.messageType]}"(msg)
@@ -198,6 +202,12 @@ class MeshNode {
 
 		neg3.addMessageHandler { msg ->
 			println msg
+		}
+
+		sleep(1000)
+
+		[neg1, neg2, neg3, neg4].each {
+			println it.sockets.keySet().join(',')
 		}
 	}
 }
