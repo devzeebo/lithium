@@ -7,10 +7,8 @@ package com.zeebo.lithium.util
 @Category(Reader)
 class ReaderCategory {
 
-	String readUntil(String sequence) {
+	String readUntil(String sequence, int bufferSize = 1024) {
 		StringBuilder builder = new StringBuilder()
-
-		int bufferSize = 1024
 
 		int seqMark = 0, numChars = 0
 		char[] buffer = new char[bufferSize]
