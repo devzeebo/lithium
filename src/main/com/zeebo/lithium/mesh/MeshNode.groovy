@@ -30,7 +30,7 @@ class MeshNode {
 		}
 	}
 
-	String serverId = UUID.randomUUID().toString()
+	String serverId = UUID.randomUUID().toString().hashCode()
 
 	ServerSocket serverSocket
 	int port
@@ -143,9 +143,9 @@ class MeshNode {
 
 		def contents = gson.fromJson(msg.message, Map)
 
-//		if (!sockets[contents.serverId]) {
+		if (serverId != contents.serverId && !sockets[contents.serverId]) {
 			connect(contents.hostName, contents.port as int)
-//		}
+		}
 	}
 
 	private def requestConnectionsHandler = { Message msg ->
@@ -167,6 +167,21 @@ class MeshNode {
 		neg1.listen()
 
 		def neg2 = new MeshNode(40027)
+		neg2.listen()
 		neg2.connect('127.0.0.1', 40026)
+
+		def neg3 = new MeshNode(40028)
+		neg3.listen()
+		neg3.connect('127.0.0.1', 40026)
+
+		sleep(200)
+
+		neg2.addMessageHandler { msg ->
+			println msg
+		}
+
+		neg3.addMessageHandler { msg ->
+			println msg
+		}
 	}
 }
