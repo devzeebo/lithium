@@ -51,6 +51,8 @@ class MeshNode {
 		this.port = port
 		serverSocket = new ServerSocket(port)
 
+		serverId = port
+
 		log.info "$serverId started on port $port"
 	}
 
@@ -106,12 +108,20 @@ class MeshNode {
 
 			log.fine "${serverId} received server info from ${remoteServerId}"
 			log.finest "${serverId} contains entry for ${remoteServerId}? ${sockets[remoteServerId] != null}"
-			sockets[remoteServerId] = [socket: socket, input: input, output: output, listenPort: message.serverPort]
+			if (sockets[remoteServerId] == null) {
+				sockets[remoteServerId] = [socket: socket, input: input, output: output, listenPort: message.serverPort]
 
-			callback?.call(remoteServerId)
+				callback?.call(remoteServerId)
 
-			while(true) {
-				handleMessage remoteServerId, Message.fromJson(input.readUntil(DELIMETER))
+				while(true) {
+					handleMessage remoteServerId, Message.fromJson(input.readUntil(DELIMETER))
+				}
+			}
+			else {
+				log.fine "${serverId} closing socket ${socket.localSocketAddress} because connection to ${remoteServerId} already exists"
+				input.close()
+				output.close()
+				socket.close()
 			}
 		}
 	}
@@ -130,7 +140,7 @@ class MeshNode {
 
 	private def handleMessage(String serverId, Message msg) {
 
-		log.fine "${this.serverId} received message from $serverId of type ${msg.messageType}"
+		log.fine "${this.serverId} received message from $serverId of type ${msg?.messageType}"
 
 		if (msg.messageType <= 128 && msg.messageType != 0) {
 			this."${systemMessageTypeHandlers[msg.messageType]}"(msg)
@@ -143,6 +153,7 @@ class MeshNode {
 
 		def contents = gson.fromJson(msg.message, Map)
 
+		log.finest "${serverId} has connections to ${sockets.keySet().join(',')}: connecting to ${contents.serverId}"
 		if (serverId != contents.serverId && !sockets[contents.serverId]) {
 			connect(contents.hostName, contents.port as int)
 		}
@@ -153,12 +164,14 @@ class MeshNode {
 		Message connectMessage = new Message(messageType: Message.MESSAGE_CONNECT)
 
 		sockets.each { serverId, map ->
-			connectMessage.message = gson.toJson([
-					serverId: serverId,
-					hostName: map.socket.remoteSocketAddress.address,
-					port: map.listenPort
-			])
-			send(map.output, connectMessage)
+			if (serverId != msg.serverId) {
+				connectMessage.message = gson.toJson([
+						serverId: serverId,
+						hostName: map.socket.remoteSocketAddress.address,
+						port: map.listenPort
+				])
+				send(sockets[msg.serverId].output, connectMessage)
+			}
 		}
 	}
 
@@ -174,7 +187,10 @@ class MeshNode {
 		neg3.listen()
 		neg3.connect('127.0.0.1', 40026)
 
-		sleep(200)
+		sleep(1000)
+
+		def neg4 = new MeshNode(40029)
+		neg4.connect('127.0.0.1', 40026)
 
 		neg2.addMessageHandler { msg ->
 			println msg
