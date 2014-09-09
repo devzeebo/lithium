@@ -10,12 +10,10 @@ class Message {
 
 	static final Gson GSON = new Gson()
 
-	static final int MESSAGE_CONNECT = 1
-	static final int MESSAGE_DISCONNECT = 2
-	static final int MESSAGE_QUERY_FORWARD = 3
-	static final int MESSAGE_ACK_FORWARD = 4
-	static final int MESSAGE_ACK_IGNORE = 5
-	static final int MESSAGE_SERVER_INFO = 6
+	static final int MESSAGE_SERVER_INFO = 1
+	static final int MESSAGE_CONNECT = 2
+	static final int MESSAGE_DISCONNECT = 3
+	static final int MESSAGE_REQUEST_CONNECTIONS = 4
 
 	int messageType
 

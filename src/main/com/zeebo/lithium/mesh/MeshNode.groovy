@@ -33,7 +33,7 @@ class MeshNode {
 	String serverId = UUID.randomUUID().toString()
 
 	ServerSocket serverSocket
-	def Message template
+	int port
 
 	Gson gson = new Gson()
 
@@ -48,8 +48,8 @@ class MeshNode {
 	}
 
 	MeshNode(int port) {
+		this.port = port
 		serverSocket = new ServerSocket(port)
-		template = new Message(serverId: serverId, serverPort: port)
 
 		log.info "$serverId started on port $port"
 	}
@@ -63,28 +63,34 @@ class MeshNode {
 	}
 
 	def connect(String hostname, int port) {
+		log.info "${serverId} attempting to connect to /$hostname:$port"
 		Socket socket = new Socket(hostname, port)
-		log.info "${serverId}($socket.localPort) attempting to connect to /$hostname:$port"
 
 		Thread.start {
-			handleSocket socket
+			handleSocket socket, { serverId ->
+				Message requestConnections = new Message(messageType: Message.MESSAGE_REQUEST_CONNECTIONS)
+				send(sockets[serverId].output, requestConnections)
+			}
 		}
 	}
 
-	private static def send(PrintWriter output, Message message) {
+	private def send(PrintWriter output, Message message) {
+
+		message.serverId = serverId
+		message.serverPort = port
+
 		output.print(message.toString() + DELIMETER)
 		output.flush()
 	}
 
-	private def handleSocket = { Socket socket ->
+	private def handleSocket = { Socket socket, Closure callback = null ->
 
 		log.info "$serverId connected to ${socket.remoteSocketAddress}"
 
 		BufferedReader input = socket.inputStream.newReader()
 		PrintWriter output = socket.outputStream.newPrintWriter()
 
-		Message serverInfo = template.clone()
-		serverInfo.messageType = Message.MESSAGE_SERVER_INFO
+		Message serverInfo = new Message(messageType: Message.MESSAGE_SERVER_INFO)
 
 		send(output, serverInfo)
 
@@ -95,6 +101,8 @@ class MeshNode {
 
 			log.fine "${serverId} received server info from ${remoteServerId}"
 			sockets[remoteServerId] = [socket: socket, input: input, output: output, listenPort: message.serverPort]
+
+			callback?.call(remoteServerId)
 
 			while(true) {
 				handleMessage remoteServerId, Message.fromJson(input.readUntil(DELIMETER))
@@ -134,16 +142,19 @@ class MeshNode {
 		}
 	}
 
-	private def queryForwardHandler = { Message msg ->
-		// check if we've received the message
-	}
+	private def requestConnectionsHandler = { Message msg ->
 
-	private def ackForwardHandler = { Message msg ->
-		// forward the message
-	}
+		Message connectMessage = new Message(messageType: Message.MESSAGE_CONNECT)
 
-	private def ackIgnoreHandler = { Message msg ->
-		// ignore the message
+		sockets.each { serverId, map ->
+
+			connectMessage.message = gson.toJson([
+					serverId: serverId,
+					hostName: map.socket.remoteSocketAddress.address,
+					port: map.listenPort
+			])
+			send(map.output, connectMessage)
+		}
 	}
 
 	public static void main(String[] args) {
