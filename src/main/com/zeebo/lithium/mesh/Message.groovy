@@ -14,6 +14,7 @@ class Message {
 	static final int MESSAGE_CONNECT = 2
 	static final int MESSAGE_DISCONNECT = 3
 	static final int MESSAGE_REQUEST_CONNECTIONS = 4
+	static final int MESSAGE_SERVER_LIST = 5
 
 	int messageType
 

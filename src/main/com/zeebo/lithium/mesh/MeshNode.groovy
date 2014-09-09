@@ -15,8 +15,6 @@ import java.util.concurrent.ConcurrentHashMap
 @Log
 class MeshNode {
 
-	static String DELIMETER = '\0'
-
 	static final def systemMessageTypeHandlers = [:]
 	static {
 		Message.declaredFields.findAll { Modifier.isStatic(it.modifiers) && Modifier.isFinal(it.modifiers) && it.name.startsWith('MESSAGE_') }.each {
@@ -30,14 +28,16 @@ class MeshNode {
 		}
 	}
 
+	Gson gson = new Gson()
+
 	String serverId = UUID.randomUUID().toString().hashCode()
 
 	ServerSocket serverSocket
 	int port
-
-	Gson gson = new Gson()
-
 	def sockets = [:] as ConcurrentHashMap
+
+	String delimiter = '\0'
+	int desirecConnectionLimit = 3
 
 	private def messageHandlers = [:].withDefault { int k ->
 		messageHandlers[k] = []
@@ -82,7 +82,7 @@ class MeshNode {
 		message.serverId = serverId
 		message.serverPort = port
 
-		output.print(message.toString() + DELIMETER)
+		output.print(message.toString() + delimiter)
 		output.flush()
 	}
 
@@ -100,7 +100,7 @@ class MeshNode {
 
 		use(ReaderCategory) {
 			log.finest "${serverId} awaiting response from ${socket.remoteSocketAddress}"
-			String messageString = input.readUntil(DELIMETER)
+			String messageString = input.readUntil(delimiter)
 			log.finest "${serverId} received response ${messageString}"
 			Message message = Message.fromJson(messageString)
 
@@ -114,7 +114,7 @@ class MeshNode {
 				callback?.call(remoteServerId)
 
 				while(true) {
-					messageString = input.readUntil(DELIMETER)
+					messageString = input.readUntil(delimiter)
 					if (messageString) {
 						handleMessage remoteServerId, Message.fromJson(messageString)
 					}
@@ -163,18 +163,49 @@ class MeshNode {
 		}
 	}
 
+	private def disconnectHandler = { Message msg ->
+
+		def contents = gson.fromJson(msg.message, Map)
+
+		log.fine "${this.serverId} disconnecting from ${contents.serverId}"
+
+		if (sockets[contents.serverId]) {
+			Map serverInfo = sockets.remove(contents.serverId)
+			serverInfo.input.close()
+			serverInfo.output.close()
+			serverInfo.socket.close()
+		}
+	}
+
 	private def requestConnectionsHandler = { Message msg ->
 
-		Message connectMessage = new Message(messageType: Message.MESSAGE_CONNECT)
+//		def contents = gson.fromJson(msg.message, Map)
 
+		Message serverListMessage = new Message(messageType: Message.MESSAGE_SERVER_LIST)
+
+		def servers = [:]
 		sockets.each { serverId, map ->
+
 			if (serverId != msg.serverId) {
-				connectMessage.message = gson.toJson([
-						serverId: serverId,
+				servers[msg.serverId] = [
 						hostName: map.socket.remoteSocketAddress.address,
 						port: map.listenPort
-				])
-				send(sockets[msg.serverId].output, connectMessage)
+				]
+			}
+		}
+
+		serverListMessage.message = gson.toJson(servers)
+
+		send(sockets[msg.serverId].output, serverListMessage)
+	}
+
+	private def serverListHandler = { Message msg ->
+
+		def contents = gson.fromJson(msg.message, Map)
+
+		contents.each { serverId, map ->
+			if (sockets.size() < desirecConnectionLimit && !sockets[serverId]) {
+				connect(map.hostName, map.port as int)
 			}
 		}
 	}
@@ -191,7 +222,7 @@ class MeshNode {
 		neg3.listen()
 		neg3.connect('127.0.0.1', 40026)
 
-		sleep(1000)
+//		sleep(1000)
 
 		def neg4 = new MeshNode(40029)
 		neg4.connect('127.0.0.1', 40026)
