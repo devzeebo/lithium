@@ -18,6 +18,13 @@ class ReaderCategoryTest extends GroovyTestCase {
 		}
 	}
 
+	void testReadUntilWithExactBuffer() {
+		use(ReaderCategory) {
+			assert reader.readUntil(' ', 1) == 'The'
+			assert reader.readUntil(' ', 1) == 'quick'
+		}
+	}
+
 	void testReadUntilWithEmptyMatch() {
 		use(ReaderCategory) {
 			assert reader.readUntil('T', 5) == ''
@@ -38,10 +45,17 @@ class ReaderCategoryTest extends GroovyTestCase {
 		}
 	}
 
+	void testReadUntilWithLongSequenceAndExactBuffer() {
+		use(ReaderCategory) {
+			assert reader.readUntil('fox', 3) == 'The quick brown '
+			assert reader.readUntil('fox', 3) == ' jumped over the lazy dog.'
+		}
+	}
+
 	void testReadUntilWithLongSequenceAndOversizedBuffer() {
 		use(ReaderCategory) {
-			assert reader.readUntil('fox', 5) == 'The quick brown '
-			assert reader.readUntil('fox', 5) == ' jumped over the lazy dog.'
+			assert reader.readUntil('fox', 19) == 'The quick brown '
+			assert reader.readUntil('fox', 19) == ' jumped over the lazy dog.'
 		}
 	}
 }

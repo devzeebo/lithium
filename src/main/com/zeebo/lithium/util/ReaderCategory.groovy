@@ -19,7 +19,7 @@ class ReaderCategory {
 			mark(bufferSize)
 
 			numChars = read(buffer)
-			if (numChars >= 0) {
+			if (numChars > 0) {
 
 				for (int i = 0; i < numChars; i++) {
 					if (buffer[i] == sequence[seqMark]) {
@@ -27,7 +27,7 @@ class ReaderCategory {
 						if (seqMark == sequence.length()) {
 							numChars = i + 1
 							done = true
-							break;
+							break
 						}
 					}
 					else {
@@ -37,8 +37,8 @@ class ReaderCategory {
 
 				builder.append(buffer, 0, numChars)
 			}
-			else {
-				break;
+			else if (numChars == -1) {
+				break
 			}
 		}
 
