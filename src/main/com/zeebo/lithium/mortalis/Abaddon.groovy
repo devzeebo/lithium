@@ -47,7 +47,7 @@ class Abaddon {
 	synchronized def registerObject(def object, long lifespan, Closure callback = null) {
 		long impendingDoom = System.currentTimeMillis() + lifespan
 
-		def obj = new MortalObject(impendingDoom: impendingDoom, delegate: object, callback: callback)
+		def obj = new MortalObject(object, impendingDoom, callback)
 		managedObjects.add(calculateInsertionIndex(impendingDoom), obj)
 
 		deathTimer.interrupt()
@@ -55,23 +55,16 @@ class Abaddon {
 		return obj
 	}
 
-	void registerList(List collection) {
-		collection.metaClass.clean = {
-			collection.retainAll { it?.@delegate != null }
-		}
-		def getProperty = collection.class.metaClass.getMetaMethod('getProperty', [String] as Class[])
-		collection.metaClass.getProperty = { String prop ->
-			println 'GET PROPERTY'
-			collection.clean()
-			return getProperty.invoke(collection, prop)
-		}
-		collection.metaClass.getProperty = { String prop ->
-			println 'GET PROPERTY'
-			collection.clean()
-			return getProperty.invoke(collection, prop)
+	def registerCollection(Collection collection) {
+		DelegatingObject obj = new DelegatingObject(delegate: collection)
+
+		println collection.class
+
+		obj.@preInvoke = { name, args ->
+			obj.@delegate.removeAll { it.@delegate == null }
 		}
 
-		managedCollections << collection
+		return obj
 	}
 
 	private int calculateInsertionIndex(long impendingDoom, int left = 0, int right = managedObjects.size()) {
@@ -91,5 +84,18 @@ class Abaddon {
 
 	public static void main(String[] args) {
 
+		def list = []
+		list = Abaddon.instance.registerCollection(list)
+
+		list << Abaddon.instance.registerObject('1', 1000) { println it }
+		list << Abaddon.instance.registerObject('2', 3400) { println it }
+		list << Abaddon.instance.registerObject('3', 1400) { println it }
+
+		list.add(0, Abaddon.instance.registerObject('4', 3000, {println it}))
+
+		while (true) {
+			println( list.collect { return it } )
+			sleep 100
+		}
 	}
 }
