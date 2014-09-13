@@ -6,18 +6,15 @@ package com.zeebo.lithium.mortalis
  * Time: 2:14 AM
  * To change this template use File | Settings | File Templates.
  */
-@Singleton(strict=false)
 class Abaddon {
 
-	private Thread deathTimer
+	private static Thread deathTimer
 
-	private def managedObjects = []
+	private static def managedObjects = []
 
-	private def managedCollections = []
+	static {
 
-	private Abaddon() {
-
-		deathTimer = Thread.start {
+		deathTimer = Thread.startDaemon {
 			while(true) {
 				def interrupted = false
 				def obj = managedObjects[0]
@@ -44,7 +41,7 @@ class Abaddon {
 		}
 	}
 
-	synchronized def registerObject(def object, long lifespan, Closure callback = null) {
+	synchronized static def registerObject(def object, long lifespan, Closure callback = null) {
 		long impendingDoom = System.currentTimeMillis() + lifespan
 
 		def obj = new MortalObject(object, impendingDoom, callback)
@@ -55,7 +52,7 @@ class Abaddon {
 		return obj
 	}
 
-	def registerCollection(Collection collection) {
+	static def registerCollection(Collection collection) {
 		DelegatingObject obj = new DelegatingObject(delegate: collection)
 
 		obj.@preInvoke = { name, args ->
@@ -65,7 +62,7 @@ class Abaddon {
 		return obj
 	}
 
-	private int calculateInsertionIndex(long impendingDoom, int left = 0, int right = managedObjects.size()) {
+	private static int calculateInsertionIndex(long impendingDoom, int left = 0, int right = managedObjects.size()) {
 		if (left < right) {
 			int index = (right + left) / 2
 			if (managedObjects[index].@impendingDoom < impendingDoom) {
@@ -83,17 +80,17 @@ class Abaddon {
 	public static void main(String[] args) {
 
 		def list = []
-		list = Abaddon.instance.registerCollection(list)
+		list = Abaddon.registerCollection(list)
 
-		list << Abaddon.instance.registerObject('1', 1000) { println it }
-		list << Abaddon.instance.registerObject('2', 3400) { println it }
-		list << Abaddon.instance.registerObject('3', 1400) { println it }
+		list << Abaddon.registerObject('1', 1000) { println it }
+		list << Abaddon.registerObject('2', 3400) { println it }
+		list << Abaddon.registerObject('3', 1400) { println it }
 
-		list.add(0, Abaddon.instance.registerObject('4', 3000, {println it}))
+		list.add(0, Abaddon.registerObject('4', 3000, {println it}))
 
 		list << 'test'
 
-		while (true) {
+		while (list.size() != 1) {
 			println( list.collect { return it } )
 			sleep 100
 		}
