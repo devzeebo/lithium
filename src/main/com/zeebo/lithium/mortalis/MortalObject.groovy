@@ -17,7 +17,7 @@ class MortalObject implements GroovyInterceptable {
 
 	def invokeMethod(String name, args) {
 		if (args.size() > 0) {
-			this.@delegate?."${name}"()
+			this.@delegate?."${name}"(args)
 		}
 		else {
 			this.@delegate?."${name}"()

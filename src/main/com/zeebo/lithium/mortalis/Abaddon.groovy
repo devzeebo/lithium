@@ -13,6 +13,8 @@ class Abaddon {
 
 	private def managedObjects = []
 
+	private def managedCollections = []
+
 	private Abaddon() {
 
 		deathTimer = Thread.start {
@@ -48,30 +50,46 @@ class Abaddon {
 		def obj = new MortalObject(impendingDoom: impendingDoom, delegate: object, callback: callback)
 		managedObjects.add(calculateInsertionIndex(impendingDoom), obj)
 
+		deathTimer.interrupt()
+
 		return obj
+	}
+
+	void registerList(List collection) {
+		collection.metaClass.clean = {
+			collection.retainAll { it?.@delegate != null }
+		}
+		def getProperty = collection.class.metaClass.getMetaMethod('getProperty', [String] as Class[])
+		collection.metaClass.getProperty = { String prop ->
+			println 'GET PROPERTY'
+			collection.clean()
+			return getProperty.invoke(collection, prop)
+		}
+		collection.metaClass.getProperty = { String prop ->
+			println 'GET PROPERTY'
+			collection.clean()
+			return getProperty.invoke(collection, prop)
+		}
+
+		managedCollections << collection
 	}
 
 	private int calculateInsertionIndex(long impendingDoom, int left = 0, int right = managedObjects.size()) {
 		if (left < right) {
-			int index = (right - left) / 2
+			int index = (right + left) / 2
 			if (managedObjects[index].@impendingDoom < impendingDoom) {
-				return calculateInsertionIndex(impendingDoom, index, right)
+				return calculateInsertionIndex(impendingDoom, index + 1, right)
 			}
 			else {
-				return calculateInsertionIndex(impendingDoom, left, index)
+				return calculateInsertionIndex(impendingDoom, left, index - 1)
 			}
 		}
 		else {
-			return left
+			return right // its actually smaller potentially
 		}
 	}
 
 	public static void main(String[] args) {
-		Abaddon.instance
-		sleep 100
 
-		Abaddon.instance.registerObject('Hello World!', 3000) {
-			println it.toUpperCase()
-		}
 	}
 }
