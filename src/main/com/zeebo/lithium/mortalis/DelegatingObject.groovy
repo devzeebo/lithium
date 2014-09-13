@@ -17,7 +17,7 @@ class DelegatingObject implements GroovyInterceptable {
 
 	def invokeMethod(String name, args) {
 		def ret = null
-		if (this.@preInvoke != null) {
+		if (this.@preInvoke) {
 			this.@preInvoke(name, args)
 		}
 		if (args.size() > 0) {
@@ -26,7 +26,7 @@ class DelegatingObject implements GroovyInterceptable {
 		else {
 			ret = this.@delegate?."${name}"()
 		}
-		if (this.@postInvoke != null) {
+		if (this.@postInvoke) {
 			this.@postInvoke(name, args)
 		}
 

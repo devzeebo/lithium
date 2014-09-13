@@ -58,10 +58,8 @@ class Abaddon {
 	def registerCollection(Collection collection) {
 		DelegatingObject obj = new DelegatingObject(delegate: collection)
 
-		println collection.class
-
 		obj.@preInvoke = { name, args ->
-			obj.@delegate.removeAll { it.@delegate == null }
+			obj.@delegate.removeAll { try { it.@delegate == null } catch (MissingFieldException mfe){} }
 		}
 
 		return obj
@@ -92,6 +90,8 @@ class Abaddon {
 		list << Abaddon.instance.registerObject('3', 1400) { println it }
 
 		list.add(0, Abaddon.instance.registerObject('4', 3000, {println it}))
+
+		list << 'test'
 
 		while (true) {
 			println( list.collect { return it } )
