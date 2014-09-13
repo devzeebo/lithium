@@ -56,7 +56,18 @@ class Abaddon {
 		DelegatingObject obj = new DelegatingObject(delegate: collection)
 
 		obj.@preInvoke = { name, args ->
-			obj.@delegate.removeAll { try { it.@delegate == null } catch (MissingFieldException mfe){} }
+			obj.@delegate.removeAll { try { it.@delegate == null } catch (MissingFieldException mfe) {} }
+		}
+
+		return obj
+	}
+
+	static def registerMap(Map map) {
+		DelegatingObject obj = new DelegatingObject(delegate: map)
+
+		obj.@preInvoke = { name, args ->
+			obj.@delegate.keySet().removeAll { try { it.@delegate == null } catch (MissingFieldException mfe) {} }
+			obj.@delegate.values().removeAll { try { it.@delegate == null } catch (MissingFieldException mfe) {} }
 		}
 
 		return obj
@@ -79,19 +90,19 @@ class Abaddon {
 
 	public static void main(String[] args) {
 
-		def list = []
-		list = Abaddon.registerCollection(list)
+		def list = [:]
 
-		list << Abaddon.registerObject('1', 1000) { println it }
-		list << Abaddon.registerObject('2', 3400) { println it }
-		list << Abaddon.registerObject('3', 1400) { println it }
+		list = Abaddon.registerMap(list)
 
-		list.add(0, Abaddon.registerObject('4', 3000, {println it}))
+		list['1'] = Abaddon.registerObject('1', 1000) { println it }
+		list['2'] = Abaddon.registerObject('2', 3400) { println it }
+		list['3'] =  Abaddon.registerObject('3', 1400) { println it }
+		list['8'] = Abaddon.registerObject('8', -100) { println it }
 
-		list << 'test'
+		list['test'] = 'test'
 
 		while (list.size() != 1) {
-			println( list.collect { return it } )
+			println( list.collect { k, v -> return "$k: $v" } )
 			sleep 100
 		}
 	}
