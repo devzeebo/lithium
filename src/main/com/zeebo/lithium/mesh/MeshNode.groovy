@@ -147,11 +147,11 @@ class MeshNode {
 		log.fine "$serverId: received message from $remoteServerId> ${message.sender} : ${message.messageType}"
 
 		MessageHandler handler = messageHandlers.find { it.typeRange.contains(message.messageType) }
-		handler.handleMessage(message)
+		handler?.handleMessage(message)
 
 		messages.setMessage(message)
 
-		if (handler.class != SystemMessageHandler) {
+		if (handler?.class != SystemMessageHandler) {
 			Message msg = new Message()
 			msg.messageId = message.messageId
 
@@ -185,7 +185,5 @@ class MeshNode {
 		Message msg = new Message(messageType: ChatMessageHandler.TYPE_CHAT_MESSAGE)
 		msg.data.contents = 'Hello World!'
 		neg1.send('127.0.1.1:40027', msg)
-
-		sleep(1000)
 	}
 }
