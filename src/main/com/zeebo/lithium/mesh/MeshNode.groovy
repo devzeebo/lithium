@@ -175,5 +175,24 @@ class MeshNode {
 		def neg1 = new MeshNode(argMap.serverName, argMap.port as int)
 		neg1.addMessageHandler(new ChatMessageHandler())
 		neg1.listen()
+
+		Scanner scan = new Scanner(System.in)
+
+		while(true) {
+			String s = scan.nextLine()
+
+			switch( s.substring(0, (s.indexOf(' ') + 1 ?: s.length()) - 1) ) {
+				case 'q':
+					System.exit(0)
+				case 'connect':
+					def host = s.substring(s.indexOf(' ') + 1).split(':')
+					neg1.connect(host[0], host[1] as int)
+					break;
+				default:
+					Message msg = new Message(messageType: ChatMessageHandler.TYPE_CHAT_MESSAGE)
+					msg.data.contents = s
+					neg1.sendAll(neg1.sockets.keySet() as String[], msg)
+			}
+		}
 	}
 }
