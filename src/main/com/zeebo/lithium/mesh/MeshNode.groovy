@@ -88,8 +88,6 @@ class MeshNode {
 	}
 
 	def send(String remoteId, Message message) {
-		println sockets.keySet()
-		println remoteId
 		if (sockets.containsKey(remoteId)) {
 			send(sockets[remoteId].output as PrintWriter, message)
 		}
@@ -174,19 +172,19 @@ class MeshNode {
 		def neg3 = new MeshNode(40028)
 		neg3.addMessageHandler(new ChatMessageHandler())
 		neg3.listen()
-		neg3.connect('127.0.1.1', 40026)
 		neg3.connect('127.0.1.1', 40027)
+
+		def neg4 = new MeshNode(40029)
+		neg4.addMessageHandler(new ChatMessageHandler())
+		neg4.listen()
+		neg4.connect('127.0.0.1', 40028)
+		neg4.connect('127.0.0.1', 40026)
 
 		sleep 1000
 
 		Message msg = new Message(messageType: ChatMessageHandler.TYPE_CHAT_MESSAGE)
 		msg.data.contents = 'Hello World!'
-		neg2.send('127.0.1.1:40026', msg)
-//
-////		sleep(1000)
-//
-//		def neg4 = new MeshNode(40029)
-//		neg4.connect('127.0.0.1', 40026)
+		neg1.send('127.0.1.1:40027', msg)
 
 		sleep(1000)
 	}
