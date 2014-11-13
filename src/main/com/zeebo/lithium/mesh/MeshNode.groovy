@@ -34,11 +34,15 @@ class MeshNode {
 	}
 
 	MeshNode(int port) {
+		this(InetAddress.localHost.hostAddress + ':' + port, port)
+	}
+
+	MeshNode(String serverName, int port) {
+
+		serverId = serverName
 		serverSocket = new ServerSocket(port)
 
 		addMessageHandler(new SystemMessageHandler())
-
-		serverId = InetAddress.localHost.hostAddress + ':' + port
 
 		log.info "$serverId started on port $port"
 	}
@@ -160,30 +164,16 @@ class MeshNode {
 	}
 
 	public static void main(String[] args) {
-		def neg1 = new MeshNode()
+
+		def argMap = [serverName: UUID.randomUUID().toString(), port: 40026]
+		args.each {
+			it.split('=').with {
+				argMap[it[0]] = it[1]
+			}
+		}
+
+		def neg1 = new MeshNode(argMap.serverName, argMap.port as int)
 		neg1.addMessageHandler(new ChatMessageHandler())
 		neg1.listen()
-
-		def neg2 = new MeshNode(40027)
-		neg2.addMessageHandler(new ChatMessageHandler())
-		neg2.listen()
-		neg2.connect('127.0.1.1', 40026)
-
-		def neg3 = new MeshNode(40028)
-		neg3.addMessageHandler(new ChatMessageHandler())
-		neg3.listen()
-		neg3.connect('127.0.1.1', 40027)
-
-		def neg4 = new MeshNode(40029)
-		neg4.addMessageHandler(new ChatMessageHandler())
-		neg4.listen()
-		neg4.connect('127.0.0.1', 40028)
-		neg4.connect('127.0.0.1', 40026)
-
-		sleep 1000
-
-		Message msg = new Message(messageType: ChatMessageHandler.TYPE_CHAT_MESSAGE)
-		msg.data.contents = 'Hello World!'
-		neg1.send('127.0.1.1:40027', msg)
 	}
 }
