@@ -1,11 +1,14 @@
 package com.zeebo.lithium.mesh
 
 import com.google.gson.Gson
+import com.zeebo.lithium.message.ChatMessageHandler
+import com.zeebo.lithium.message.MessageBuffer
+import com.zeebo.lithium.message.MessageHandler
+import com.zeebo.lithium.message.SystemMessageHandler
 import com.zeebo.lithium.util.ReaderCategory
 
 import groovy.util.logging.Log
 
-import java.lang.reflect.Modifier
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -15,45 +18,39 @@ import java.util.concurrent.ConcurrentHashMap
 @Log
 class MeshNode {
 
-	static final def systemMessageTypeHandlers = [:]
-	static {
-		Message.declaredFields.findAll { Modifier.isStatic(it.modifiers) && Modifier.isFinal(it.modifiers) && it.name.startsWith('MESSAGE_') }.each {
-			String name = it.name.replace('MESSAGE_', '').toLowerCase()
-			def matcher = name =~ /\_(\w)/
-			while (matcher.find()) {
-				name = name.replace(matcher.group(), matcher.group(1).toUpperCase())
-			}
-
-			systemMessageTypeHandlers[Message."${it.name}"] = name + 'Handler'
-		}
-	}
-
-	Gson gson = new Gson()
-
-	String serverId = UUID.randomUUID().toString().hashCode()
+	static final Gson gson = new Gson()
+	static String delimiter = '\0'
 
 	ServerSocket serverSocket
-	int port
+	String serverId
+
 	def sockets = [:] as ConcurrentHashMap
+	def messages = new MessageBuffer()
 
-	String delimiter = '\0'
-	int desirecConnectionLimit = 3
-
-	private def messageHandlers = [:].withDefault { int k ->
-		messageHandlers[k] = []
-	}
+	private List<MessageHandler> messageHandlers = []
 
 	MeshNode() {
 		this(40026)
 	}
 
 	MeshNode(int port) {
-		this.port = port
 		serverSocket = new ServerSocket(port)
+
+		addMessageHandler(new SystemMessageHandler())
 
 		serverId = InetAddress.localHost.hostAddress + ':' + port
 
 		log.info "$serverId started on port $port"
+	}
+
+	def addMessageHandler(MessageHandler handler) {
+		def collision = null
+		if (!(collision = messageHandlers.find { it.typeRange.intersect(handler.typeRange) })) {
+			handler.node = this
+			messageHandlers << handler
+		} else {
+			log.severe "Cannot add handler ${handler.class}. Collision on type range with ${collision.class}: ${collision.typeRange.from}-${collision.typeRange.to}"
+		}
 	}
 
 	def listen() {
@@ -65,63 +62,80 @@ class MeshNode {
 	}
 
 	def connect(String hostname, int port) {
-		log.info "${serverId} attempting to connect to /$hostname:$port"
+
+		log.info "$serverId: attempting to connect to $hostname:$port"
+
 		Socket socket = new Socket(hostname, port)
-		log.fine "${serverId} opened port ${socket.localPort}"
+		log.fine "$serverId: connection established ${socket.localSocketAddress} to $hostname:$port"
 
 		Thread.start {
-			handleSocket socket, { serverId ->
-				Message requestConnections = new Message(messageType: Message.MESSAGE_REQUEST_CONNECTIONS)
-				send(sockets[serverId].output, requestConnections)
-			}
+			handleSocket socket
 		}
 	}
 
-	private def send(PrintWriter output, Message message) {
+	def send(PrintWriter output, Message message) {
 
-		message.serverId = serverId
-		message.serverPort = port
+		if (!message.sender) {
+			message.sender = serverId
+		}
+
+		if (message.messageType) {
+			messages.setMessage(message)
+		}
 
 		output.print(message.toString() + delimiter)
 		output.flush()
 	}
 
-	private def handleSocket = { Socket socket, Closure callback = null ->
+	def send(String remoteId, Message message) {
+		println sockets.keySet()
+		println remoteId
+		if (sockets.containsKey(remoteId)) {
+			send(sockets[remoteId].output as PrintWriter, message)
+		}
+	}
 
-		log.info "$serverId connected to ${socket.remoteSocketAddress}"
+	def sendAll(String[] remoteIds, Message message) {
+		remoteIds.each {
+			send(sockets[it].output as PrintWriter, message)
+		}
+	}
+
+	private def handleSocket = { Socket socket ->
+
+		log.info "$serverId: connected to ${socket.remoteSocketAddress}"
 
 		BufferedReader input = socket.inputStream.newReader()
 		PrintWriter output = socket.outputStream.newPrintWriter()
 
-		Message serverInfo = new Message(messageType: Message.MESSAGE_SERVER_INFO)
+		Message serverInfo = new Message()
 
-		log.finest "${serverId} sending server info to ${socket.remoteSocketAddress}"
+		log.finest "$serverId: sending server info to ${socket.remoteSocketAddress}"
 		send(output, serverInfo)
 
 		use(ReaderCategory) {
-			log.finest "${serverId} awaiting response from ${socket.remoteSocketAddress}"
+
+			log.finest "$serverId: awaiting response from ${socket.remoteSocketAddress}"
+
 			String messageString = input.readUntil(delimiter)
-			log.finest "${serverId} received response ${messageString}"
 			Message message = Message.fromJson(messageString)
+			String remoteServerId = message.sender
 
-			String remoteServerId = message.serverId
+			log.info "$serverId: received server info from ${socket.remoteSocketAddress}. Identifying as $remoteServerId"
 
-			log.fine "${serverId} received server info from ${remoteServerId}"
-			log.finest "${serverId} contains entry for ${remoteServerId}? ${sockets[remoteServerId] != null}"
-			if (sockets[remoteServerId] == null) {
-				sockets[remoteServerId] = [socket: socket, input: input, output: output, listenPort: message.serverPort]
+			if (!sockets[remoteServerId]) {
 
-				callback?.call(remoteServerId)
+				log.info "$serverId: connection confirmed to $remoteServerId"
+				sockets[remoteServerId] = [socket: socket, input: input, output: output]
 
-				while(true) {
+				while (true) {
 					messageString = input.readUntil(delimiter)
 					if (messageString) {
 						handleMessage remoteServerId, Message.fromJson(messageString)
 					}
 				}
-			}
-			else {
-				log.fine "${serverId} closing socket ${socket.localSocketAddress} because connection to ${remoteServerId} already exists"
+			} else {
+				log.fine "${serverId}: Connection to $remoteServerId already exists. Closing ${socket.localSocketAddress}"
 				input.close()
 				output.close()
 				socket.close()
@@ -129,116 +143,51 @@ class MeshNode {
 		}
 	}
 
-	def addMessageHandler(Closure handler) {
-		messageHandlers[0] << handler
-	}
+	private def handleMessage(String remoteServerId, Message message) {
 
-	def addMessageHandler(int messageType, Closure handler) {
-		if (messageType < 128 && messageType != 0) {
-			throw new IllegalArgumentException('User message types must be greater than 128')
-		}
+		assert message != null
+		log.fine "$serverId: received message from $remoteServerId> ${message.sender} : ${message.messageType}"
 
-		messageHandlers[messageType] << handler
-	}
+		MessageHandler handler = messageHandlers.find { it.typeRange.contains(message.messageType) }
+		handler.handleMessage(message)
 
-	private def handleMessage(String serverId, Message msg) {
+		messages.setMessage(message)
 
-		assert msg != null
-		log.fine "${this.serverId} received message from $serverId of type ${msg.messageType}"
+		if (handler.class != SystemMessageHandler) {
+			Message msg = new Message()
+			msg.messageId = message.messageId
 
-		if (msg.messageType <= 128 && msg.messageType != 0) {
-			this."${systemMessageTypeHandlers[msg.messageType]}"(msg)
-		} else {
-			messageHandlers[msg.messageType].each { it(msg) }
-		}
-	}
-
-	private def connectHandler = { Message msg ->
-
-		def contents = gson.fromJson(msg.message, Map)
-
-		log.finest "${serverId} has connections to ${sockets.keySet().join(',')}: connecting to ${contents.serverId}"
-		if (serverId != contents.serverId && !sockets[contents.serverId]) {
-			connect(contents.hostName, contents.port as int)
-		}
-	}
-
-	private def disconnectHandler = { Message msg ->
-
-		def contents = gson.fromJson(msg.message, Map)
-
-		log.fine "${this.serverId} disconnecting from ${contents.serverId}"
-
-		if (sockets[contents.serverId]) {
-			Map serverInfo = sockets.remove(contents.serverId)
-			serverInfo.input.close()
-			serverInfo.output.close()
-			serverInfo.socket.close()
-		}
-	}
-
-	private def requestConnectionsHandler = { Message msg ->
-
-//		def contents = gson.fromJson(msg.message, Map)
-
-		Message serverListMessage = new Message(messageType: Message.MESSAGE_SERVER_LIST)
-
-		def servers = [:]
-		sockets.each { serverId, map ->
-
-			if (serverId != msg.serverId) {
-				servers[msg.serverId] = [
-						hostName: map.socket.remoteSocketAddress.address,
-						port: map.listenPort
-				]
-			}
-		}
-
-		serverListMessage.message = gson.toJson(servers)
-
-		send(sockets[msg.serverId].output, serverListMessage)
-	}
-
-	private def serverListHandler = { Message msg ->
-
-		def contents = gson.fromJson(msg.message, Map)
-
-		contents.each { serverId, map ->
-			if (sockets.size() < desirecConnectionLimit && !sockets[serverId]) {
-				connect(map.hostName, map.port as int)
-			}
+			sendAll(sockets.keySet().findAll { it != remoteServerId } as String[], msg)
 		}
 	}
 
 	public static void main(String[] args) {
 		def neg1 = new MeshNode()
+		neg1.addMessageHandler(new ChatMessageHandler())
 		neg1.listen()
 
 		def neg2 = new MeshNode(40027)
+		neg2.addMessageHandler(new ChatMessageHandler())
 		neg2.listen()
-		neg2.connect('127.0.0.1', 40026)
+		neg2.connect('127.0.1.1', 40026)
 
 		def neg3 = new MeshNode(40028)
+		neg3.addMessageHandler(new ChatMessageHandler())
 		neg3.listen()
-		neg3.connect('127.0.0.1', 40026)
+		neg3.connect('127.0.1.1', 40026)
+		neg3.connect('127.0.1.1', 40027)
 
-//		sleep(1000)
+		sleep 1000
 
-		def neg4 = new MeshNode(40029)
-		neg4.connect('127.0.0.1', 40026)
-
-		neg2.addMessageHandler { msg ->
-			println msg
-		}
-
-		neg3.addMessageHandler { msg ->
-			println msg
-		}
+		Message msg = new Message(messageType: ChatMessageHandler.TYPE_CHAT_MESSAGE)
+		msg.data.contents = 'Hello World!'
+		neg2.send('127.0.1.1:40026', msg)
+//
+////		sleep(1000)
+//
+//		def neg4 = new MeshNode(40029)
+//		neg4.connect('127.0.0.1', 40026)
 
 		sleep(1000)
-
-		[neg1, neg2, neg3, neg4].each {
-			println it.sockets.keySet().join(',')
-		}
 	}
 }

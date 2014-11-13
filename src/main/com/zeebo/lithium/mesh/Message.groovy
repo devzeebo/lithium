@@ -10,18 +10,14 @@ class Message {
 
 	static final Gson GSON = new Gson()
 
-	static final int MESSAGE_SERVER_INFO = 1
-	static final int MESSAGE_CONNECT = 2
-	static final int MESSAGE_DISCONNECT = 3
-	static final int MESSAGE_REQUEST_CONNECTIONS = 4
-	static final int MESSAGE_SERVER_LIST = 5
+	String messageId = UUID.randomUUID().toString()
 
 	int messageType
 
-	String serverId
-	int serverPort
+	String sender
+	List<String> recipients
 
-	String message
+	Map data = [:]
 
 	Message clone() {
 		return GSON.fromJson(GSON.toJson(this), Message)

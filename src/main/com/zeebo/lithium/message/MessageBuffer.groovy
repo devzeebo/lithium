@@ -1,13 +1,39 @@
 package com.zeebo.lithium.message
 
+import com.zeebo.lithium.mesh.Message
+import com.zeebo.lithium.mortalis.Abaddon
+
+import java.util.concurrent.ConcurrentHashMap
+
 /**
- * Created with IntelliJ IDEA.
  * User: Eric Siebeneich
  * Date: 9/12/14
- * Time: 2:11 AM
- * To change this template use File | Settings | File Templates.
  */
 class MessageBuffer {
 
-	def recentMessages
+	// set the lifespan to 30 seconds
+	static final def lifespan = 1000 * 30
+
+	def messages = [:] as ConcurrentHashMap<String, Message>
+
+	MessageBuffer() {
+		Abaddon.registerMap(messages)
+	}
+
+	def getAt(String messageId) {
+		return messages[messageId]
+	}
+
+	def addMessage(Message message) {
+		if (messages.containsKey(message.messageId)) {
+			return false
+		}
+
+		messages[message.messageId] = Abaddon.registerObject(message, lifespan)
+		return true
+	}
+
+	def setMessage(Message message) {
+		messages[message.messageId] = Abaddon.registerObject(message, lifespan)
+	}
 }
