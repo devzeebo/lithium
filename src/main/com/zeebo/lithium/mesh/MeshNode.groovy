@@ -103,6 +103,10 @@ class MeshNode {
 		}
 	}
 
+	def sendAll(Message message) {
+		sendAll(sockets.keySet() as String[], message)
+	}
+
 	private def handleSocket = { Socket socket ->
 
 		log.info "$serverId: connected to ${socket.remoteSocketAddress}"
