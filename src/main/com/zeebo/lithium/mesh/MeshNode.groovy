@@ -160,6 +160,7 @@ class MeshNode {
 		messages.setMessage(message)
 
 		if (handler?.class != SystemMessageHandler) {
+			log.fine "$serverId: rebroadcasting message to ${sockets.keySet().findAll { it != remoteServerId }}"
 			Message msg = new Message()
 			msg.messageId = message.messageId
 
