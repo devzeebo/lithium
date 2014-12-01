@@ -30,7 +30,7 @@ class Abaddon {
 						obj.@delegate = null
 						managedObjects.remove(0)
 
-						println 'Deleted object'
+//						println 'Deleted object'
 					}
 					interrupted = false
 				}
