@@ -53,8 +53,14 @@ class MeshNode {
 			heartbeat = new Message(messageType: SystemMessageHandler.TYPE_HEARTBEAT)
 
 			while(true) {
-				sleep 1000
 
+				def time = System.currentTimeMillis()
+				sockets.findAll { k, v -> v.timeout + 5000 < time }.each { k, v ->
+					log.info "Timeout detected: Closing connection to $k"
+					sockets.remove(k)
+				}
+
+				sleep 1000
 				sendAll(heartbeat)
 			}
 		}
@@ -151,7 +157,7 @@ class MeshNode {
 			if (!sockets[remoteServerId]) {
 
 				log.info "$serverId: connection confirmed to $remoteServerId"
-				sockets[remoteServerId] = [socket: socket, input: input, output: output]
+				sockets[remoteServerId] = [socket: socket, input: input, output: output, timeout: System.currentTimeMillis()]
 
 				while (true) {
 					messageString = input.readUntil(delimiter)
@@ -172,6 +178,7 @@ class MeshNode {
 
 		assert message != null
 		log.fine "$serverId: received message from $remoteServerId> ${message.sender} : ${message.messageType}"
+		sockets[message.sender].timeout = System.currentTimeMillis()
 
 		MessageHandler handler = messageHandlers.find { it.typeRange.contains(message.messageType) }
 		handler?.handleMessage(message)
