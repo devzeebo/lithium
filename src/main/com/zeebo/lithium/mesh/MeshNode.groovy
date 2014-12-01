@@ -8,8 +8,10 @@ import com.zeebo.lithium.message.SystemMessageHandler
 import com.zeebo.lithium.util.ReaderCategory
 
 import groovy.util.logging.Log
+import sun.util.logging.PlatformLogger
 
 import java.util.concurrent.ConcurrentHashMap
+import java.util.logging.Level
 
 /**
  * User: Eric
@@ -177,7 +179,8 @@ class MeshNode {
 	private def handleMessage(String remoteServerId, Message message) {
 
 		assert message != null
-		log.fine "$serverId: received message from $remoteServerId> ${message.sender} : ${message.messageType}"
+		log.log(message.messageType == 1 ? Level.FINEST : Level.FINE,
+				"$serverId: received message from $remoteServerId> ${message.sender} : ${message.messageType}")
 		if (sockets[message.sender]) {
 			sockets[message.sender]?.timeout = System.currentTimeMillis()
 
