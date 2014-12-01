@@ -12,8 +12,9 @@ import java.lang.reflect.Modifier
 class SystemMessageHandler extends MessageHandler {
 
 	public static final int TYPE_MESSAGE_NOTIFICATION = 0
-	public static final int TYPE_CONNECT = 1
+	public static final int TYPE_HEARTBEAT = 1
 	public static final int TYPE_GET_MESSAGE = 2
+	public static final int TYPE_CONNECT = 3
 
 	IntRange getTypeRange() { (0..128) }
 
@@ -35,4 +36,6 @@ class SystemMessageHandler extends MessageHandler {
 		Message msg = node.messages[message.data.messageId].@delegate
 		node.send(message.sender, msg)
 	}
+
+	def handleHeartbeat(Message message) {}
 }

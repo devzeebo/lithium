@@ -29,6 +29,8 @@ class MeshNode {
 
 	private List<MessageHandler> messageHandlers = []
 
+	private Message heartbeat
+
 	MeshNode() {
 		this(40026)
 	}
@@ -45,6 +47,17 @@ class MeshNode {
 		addMessageHandler(new SystemMessageHandler())
 
 		log.info "$serverId started on port $port"
+
+		Thread.startDaemon {
+
+			heartbeat = new Message(messageType: SystemMessageHandler.TYPE_HEARTBEAT)
+
+			while(true) {
+				sleep 1000
+
+				sendAll(heartbeat)
+			}
+		}
 	}
 
 	def addMessageHandler(MessageHandler handler) {
@@ -77,13 +90,13 @@ class MeshNode {
 		}
 	}
 
-	def send(PrintWriter output, Message message) {
+	private def sendHelper(PrintWriter output, Message message) {
 
 		if (!message.sender) {
 			message.sender = serverId
 		}
 
-		if (message.messageType) {
+		if (message.messageType > 1) {
 			messages.setMessage(message)
 		}
 
@@ -93,13 +106,19 @@ class MeshNode {
 
 	def send(String remoteId, Message message) {
 		if (sockets.containsKey(remoteId)) {
-			send(sockets[remoteId].output as PrintWriter, message)
+			try {
+				sendHelper(sockets[remoteId].output as PrintWriter, message)
+			}
+			catch(SocketException e) {
+				e.printStackTrace()
+				sockets.remove(remoteId)
+			}
 		}
 	}
 
 	def sendAll(String[] remoteIds, Message message) {
 		remoteIds.each {
-			send(sockets[it].output as PrintWriter, message)
+			send(it, message)
 		}
 	}
 
@@ -117,7 +136,7 @@ class MeshNode {
 		Message serverInfo = new Message()
 
 		log.finest "$serverId: sending server info to ${socket.remoteSocketAddress}"
-		send(output, serverInfo)
+		sendHelper(output, serverInfo)
 
 		use(ReaderCategory) {
 
