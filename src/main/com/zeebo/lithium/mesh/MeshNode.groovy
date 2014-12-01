@@ -178,19 +178,21 @@ class MeshNode {
 
 		assert message != null
 		log.fine "$serverId: received message from $remoteServerId> ${message.sender} : ${message.messageType}"
-		sockets[message.sender].timeout = System.currentTimeMillis()
+		if (sockets[message.sender]) {
+			sockets[message.sender]?.timeout = System.currentTimeMillis()
 
-		MessageHandler handler = messageHandlers.find { it.typeRange.contains(message.messageType) }
-		handler?.handleMessage(message)
+			MessageHandler handler = messageHandlers.find { it.typeRange.contains(message.messageType) }
+			handler?.handleMessage(message)
 
-		messages.setMessage(message)
+			messages.setMessage(message)
 
-		if (handler?.class != SystemMessageHandler) {
-			log.fine "$serverId: rebroadcasting message to ${sockets.keySet().findAll { it != remoteServerId }}"
-			Message msg = new Message()
-			msg.messageId = message.messageId
+			if (handler?.class != SystemMessageHandler) {
+				log.fine "$serverId: rebroadcasting message to ${sockets.keySet().findAll { it != remoteServerId }}"
+				Message msg = new Message()
+				msg.messageId = message.messageId
 
-			sendAll(sockets.keySet().findAll { it != remoteServerId } as String[], msg)
+				sendAll(sockets.keySet().findAll { it != remoteServerId } as String[], msg)
+			}
 		}
 	}
 
