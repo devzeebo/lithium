@@ -133,7 +133,7 @@ class MeshNode {
         sendAll(sockets.keySet() as String[], message)
     }
 
-    private def handleSocket = { Socket socket, Closure callback ->
+    private def handleSocket = { Socket socket, Closure callback = null ->
 
         log.info "$serverId: connected to ${socket.remoteSocketAddress}"
 
@@ -160,7 +160,7 @@ class MeshNode {
                 log.info "$serverId: connection confirmed to $remoteServerId"
                 sockets[remoteServerId] = [socket: socket, input: input, output: output, timeout: System.currentTimeMillis()]
 
-                callback sockets.find { k, v -> k == remoteServerId }
+                callback?.call sockets.find { k, v -> k == remoteServerId }
 
                 while (true) {
                     messageString = input.readUntil(delimiter)
