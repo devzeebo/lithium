@@ -57,12 +57,12 @@ class MeshNode {
             while (true) {
 
                 def time = System.currentTimeMillis()
-                sockets.findAll { k, v -> v.timeout + 5000 < time }.each { k, v ->
+                sockets.findAll { k, v -> v.timeout + 20000 < time }.each { k, v ->
                     log.info "Timeout detected: Closing connection to $k"
                     sockets.remove(k)
                 }
 
-                sleep 1000
+                sleep 3000
                 sendAll(heartbeat)
             }
         }
