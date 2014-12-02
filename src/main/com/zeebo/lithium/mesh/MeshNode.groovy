@@ -190,9 +190,9 @@ class MeshNode {
         MessageHandler handler = messageHandlers.find { it.typeRange.contains(message.messageType) }
         handler?.handleMessage(message)
 
-        messages.setMessage(message)
-
         if (handler?.class != SystemMessageHandler) {
+            messages.setMessage(message)
+            
             log.fine "$serverId: rebroadcasting message to ${sockets.keySet().findAll { it != remoteServerId }}"
             Message msg = new Message()
             msg.messageId = message.messageId
