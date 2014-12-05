@@ -1,10 +1,10 @@
 package com.zeebo.lithium.mortalis
+
+import java.util.concurrent.locks.ReentrantLock
+
 /**
- * Created with IntelliJ IDEA.
  * User: Eric Siebeneich
  * Date: 9/12/14
- * Time: 2:14 AM
- * To change this template use File | Settings | File Templates.
  */
 class Abaddon {
 
@@ -12,10 +12,12 @@ class Abaddon {
 
 	private static def managedObjects = []
 
+	private static ReentrantLock mutex = new ReentrantLock()
+
 	static {
 
 		deathTimer = Thread.startDaemon {
-			while(true) {
+			while (true) {
 				def interrupted = false
 				def obj = managedObjects[0]
 
@@ -24,17 +26,16 @@ class Abaddon {
 						interrupted = true
 					})
 					if (!interrupted) {
-						if (obj.@callback) {
-							obj.@callback(obj.@delegate)
+						withMutex {
+							if (obj.@callback) {
+								obj.@callback(obj.@delegate)
+							}
+							obj.@delegate = null
+							managedObjects.remove(0)
 						}
-						obj.@delegate = null
-						managedObjects.remove(0)
-
-//						println 'Deleted object'
 					}
 					interrupted = false
-				}
-				else {
+				} else {
 					sleep 10
 				}
 			}
@@ -44,12 +45,14 @@ class Abaddon {
 	synchronized static def registerObject(def object, long lifespan, Closure callback = null) {
 		long impendingDoom = System.currentTimeMillis() + lifespan
 
-		def obj = new MortalObject(object, impendingDoom, callback)
-		managedObjects.add(calculateInsertionIndex(impendingDoom), obj)
+		withMutex {
+			def obj = new MortalObject(object, impendingDoom, callback)
+			managedObjects.add(calculateInsertionIndex(impendingDoom), obj)
 
-		deathTimer.interrupt()
+			deathTimer.interrupt()
 
-		return obj
+			return obj
+		}
 	}
 
 	static def registerCollection(Collection collection) {
@@ -78,14 +81,26 @@ class Abaddon {
 			int index = (right + left) / 2
 			if (managedObjects[index].@impendingDoom < impendingDoom) {
 				return calculateInsertionIndex(impendingDoom, index + 1, right)
-			}
-			else {
+			} else {
 				return calculateInsertionIndex(impendingDoom, left, index - 1)
 			}
-		}
-		else {
+		} else {
 			return right // its actually smaller potentially
 		}
+	}
+
+	private static def withMutex(Closure closure) {
+		mutex.lock()
+
+		def result
+		try {
+			result = closure()
+		}
+		finally {
+			mutex.unlock()
+		}
+
+		return result
 	}
 
 	public static void main(String[] args) {
@@ -96,13 +111,13 @@ class Abaddon {
 
 		list['1'] = Abaddon.registerObject('1', 1000) { println it }
 		list['2'] = Abaddon.registerObject('2', 3400) { println it }
-		list['3'] =  Abaddon.registerObject('3', 1400) { println it }
+		list['3'] = Abaddon.registerObject('3', 1400) { println it }
 		list['8'] = Abaddon.registerObject('8', -100) { println it }
 
 		list['test'] = 'test'
 
 		while (list.size() != 1) {
-			println( list.collect { k, v -> return "$k: $v" } )
+			println(list.collect { k, v -> return "$k: $v" })
 			sleep 100
 		}
 	}

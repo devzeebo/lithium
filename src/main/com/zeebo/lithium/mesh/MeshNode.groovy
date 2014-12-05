@@ -8,7 +8,6 @@ import com.zeebo.lithium.message.SystemMessageHandler
 import com.zeebo.lithium.util.ReaderCategory
 
 import groovy.util.logging.Log
-import sun.util.logging.PlatformLogger
 
 import java.util.concurrent.ConcurrentHashMap
 import java.util.logging.Level
@@ -219,17 +218,27 @@ class MeshNode {
         while (true) {
             String s = scan.nextLine()
 
-            switch (s.substring(0, (s.indexOf(' ') + 1 ?: s.length()) - 1)) {
+	        def split = s.split(' ')
+
+            switch (split[0]) {
                 case 'q':
                     System.exit(0)
                 case 'connect':
-                    def host = s.substring(s.indexOf(' ') + 1).split(':')
+                    def host = split[1].split(':')
                     neg1.connect(host[0], host[1] as int) { println "Connected to $it!" }
-                    break;
+                    break
+	            case 'flood':
+		            def count = split[1] as long
+		            for(int i = 0; i < count; i++) {
+						Message message = new Message(messageType: 1000)
+			            neg1.sendAll(message)
+			            sleep 10
+		            }
+		            break
                 default:
                     Message msg = new Message(messageType: ChatMessageHandler.TYPE_CHAT_MESSAGE)
                     msg.data.contents = s
-                    neg1.sendAll(neg1.sockets.keySet() as String[], msg)
+                    neg1.sendAll(msg)
             }
         }
     }
